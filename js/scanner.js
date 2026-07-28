@@ -10,11 +10,9 @@
 let html5QrCode = null;
 
 let scannerRunning = false;
-
 let scanLocked = false;
 
 let cameras = [];
-
 let currentCameraId = null;
 
 // =====================================================
@@ -23,75 +21,95 @@ let currentCameraId = null;
 
 async function initScanner() {
 
-    document
-        .getElementById("startBtn")
-        .addEventListener("click", startScanner);
+    const uploadBtn =
+        document.getElementById("uploadBtn");
 
-    document
-        .getElementById("stopBtn")
-        .addEventListener("click", stopScanner);
+    const imageInput =
+        document.getElementById("imageInput");
 
-    document
-        .getElementById("uploadBtn")
-        .addEventListener("click", () => {
+    const cameraSelect =
+        document.getElementById("cameraSelect");
 
-            document
-                .getElementById("imageInput")
-                .click();
+    // tombol
 
-        });
+    startBtn.addEventListener(
+        "click",
+        startScanner
+    );
 
-    document
-        .getElementById("imageInput")
-        .addEventListener(
-            "change",
-            async (e) => {
+    stopBtn.addEventListener(
+        "click",
+        stopScanner
+    );
 
-                if (!e.target.files.length) return;
+    // upload image
 
-                await scanImage(e.target.files[0]);
+    uploadBtn.addEventListener(
+        "click",
+        () => imageInput.click()
+    );
 
-                e.target.value = "";
+    imageInput.addEventListener(
+        "change",
+        async (e)=>{
+
+            if(!e.target.files.length){
+
+                return;
 
             }
-        );
 
-    document
-        .getElementById("cameraSelect")
-        .addEventListener(
-            "change",
-            async function () {
+            await scanImage(e.target.files[0]);
 
-                if (!this.value) return;
+            imageInput.value="";
 
-                currentCameraId = this.value;
+        }
+    );
 
-                if (!scannerRunning) return;
+    // switch camera
+
+    cameraSelect.addEventListener(
+        "change",
+        async ()=>{
+
+            if(!cameraSelect.value){
+
+                return;
+
+            }
+
+            currentCameraId =
+                cameraSelect.value;
+
+            if(scannerRunning){
 
                 await switchCamera(currentCameraId);
 
             }
-        );
+
+        }
+    );
 
 }
-
 // =====================================================
-// LOAD CAMERA
+// LOAD CAMERA LIST
 // =====================================================
 
-async function loadCameraList() {
+async function loadCameraList(){
 
-    const select =
+    const cameraSelect =
         document.getElementById("cameraSelect");
 
-    cameras =
-        await Html5Qrcode.getCameras();
+    try{
 
-    select.innerHTML = "";
+        cameras =
+            await Html5Qrcode.getCameras();
 
-    if (cameras.length === 0) {
+        cameraSelect.innerHTML = "";
 
-        select.innerHTML = `
+        if(cameras.length===0){
+
+            cameraSelect.innerHTML=`
 
 <option value="">
 
@@ -101,34 +119,45 @@ Tidak ada kamera
 
 `;
 
-        return;
+            return;
 
-    }
+        }
 
-    cameras.forEach((camera, index) => {
+        cameras.forEach((camera,index)=>{
 
-        const option =
-            document.createElement("option");
+            const option =
+                document.createElement("option");
 
-        option.value =
-            camera.id;
+            option.value =
+                camera.id;
 
-        option.textContent =
-            camera.label ||
-            `Camera ${index + 1}`;
+            let label =
+                camera.label;
 
-        select.appendChild(option);
+            if(!label){
 
-    });
+                label =
+                    `Camera ${index+1}`;
 
-    const backCamera =
+            }
 
-        cameras.find(camera => {
+            option.textContent =
+                label;
+
+            cameraSelect.appendChild(option);
+
+        });
+
+        // ==========================
+        // pilih kamera belakang
+        // ==========================
+
+        const backCamera = cameras.find(cam=>{
 
             const label =
-                camera.label.toLowerCase();
+                (cam.label||"").toLowerCase();
 
-            return (
+            return(
 
                 label.includes("back") ||
 
@@ -140,51 +169,116 @@ Tidak ada kamera
 
         });
 
-    currentCameraId =
+        if(backCamera){
 
-        backCamera ?
+            currentCameraId =
+                backCamera.id;
 
-        backCamera.id :
+        }
 
-        cameras[0].id;
+        else{
 
-    select.value =
-        currentCameraId;
+            currentCameraId =
+                cameras[0].id;
+
+        }
+
+        cameraSelect.value =
+            currentCameraId;
+
+    }
+
+    catch(err){
+
+        console.error(err);
+
+        showToast(
+            "Gagal mengambil daftar kamera",
+            "error"
+        );
+
+    }
 
 }
-
 // =====================================================
-// START
+// SWITCH CAMERA
 // =====================================================
 
-async function startScanner() {
+async function switchCamera(cameraId){
 
-    if (scannerRunning) return;
+    try{
 
-    try {
+        await stopScanner(false);
+
+        await startScanner(cameraId);
+
+    }
+
+    catch(err){
+
+        console.error(err);
+
+    }
+
+}
+// =====================================================
+// START CAMERA
+// =====================================================
+
+async function startScanner(cameraId = null){
+
+    if(scannerRunning){
+
+        return;
+
+    }
+
+    try{
+
+        // ======================
+        // Minta permission dulu
+        // ======================
+
+        if(cameras.length===0){
+
+            await loadCameraList();
+
+        }
+
+        if(cameraId){
+
+            currentCameraId =
+                cameraId;
+
+        }
+
+        if(!currentCameraId){
+
+            currentCameraId =
+                cameras[0].id;
+
+        }
 
         html5QrCode =
             new Html5Qrcode("reader");
 
         await html5QrCode.start(
 
-            {
-
-                facingMode: "environment"
-
-            },
+            currentCameraId,
 
             {
 
-                fps: 10,
+                fps:10,
 
-                qrbox: {
+                qrbox:{
 
-                    width: 250,
+                    width:250,
 
-                    height: 250
+                    height:250
 
-                }
+                },
+
+                aspectRatio:1
 
             },
 
@@ -201,131 +295,42 @@ async function startScanner() {
         stopBtn.disabled = false;
 
         setStatus(
-
             "Scanner Aktif",
-
             "#22c55e"
-
         );
 
-        await loadCameraList();
-
-        await switchCamera(currentCameraId);
-
         showToast(
-
             "Scanner aktif",
-
             "success"
-
         );
 
     }
 
-    catch (err) {
+    catch(err){
 
         console.error(err);
 
         showToast(
-
             "Tidak dapat membuka kamera",
-
             "error"
-
         );
 
     }
 
 }
-
 // =====================================================
-// SWITCH CAMERA
+// STOP CAMERA
 // =====================================================
 
-async function switchCamera(cameraId) {
+async function stopScanner(showMessage = true){
 
-    try {
+    if(!scannerRunning){
 
-        if (html5QrCode) {
-
-            await html5QrCode.stop();
-
-            await html5QrCode.clear();
-
-        }
+        return;
 
     }
 
-    catch (e) {}
-
-    html5QrCode =
-        new Html5Qrcode("reader");
-
-    await html5QrCode.start(
-
-        cameraId,
-
-        {
-
-            fps: 10,
-
-            qrbox: {
-
-                width: 250,
-
-                height: 250
-
-            }
-
-        },
-
-        onScanSuccess,
-
-        onScanFailure
-
-    );
-
-    removeMirror();
-
-}
-
-// =====================================================
-// REMOVE MIRROR
-// =====================================================
-
-function removeMirror() {
-
-    const interval =
-
-        setInterval(() => {
-
-            const video =
-
-                document.querySelector(
-
-                    "#reader video"
-
-                );
-
-            if (!video) return;
-
-            clearInterval(interval);
-
-            video.style.transform = "scaleX(1)";
-
-        }, 100);
-
-}
-
-// =====================================================
-// STOP
-// =====================================================
-
-async function stopScanner() {
-
-    if (!scannerRunning) return;
-
-    try {
+    try{
 
         await html5QrCode.stop();
 
@@ -333,31 +338,35 @@ async function stopScanner() {
 
     }
 
-    catch (e) {}
+    catch(err){
+
+        console.error(err);
+
+    }
 
     scannerRunning = false;
 
     scanLocked = false;
+
+    html5QrCode = null;
 
     startBtn.disabled = false;
 
     stopBtn.disabled = true;
 
     setStatus(
-
         "Scanner Berhenti",
-
         "#ef4444"
-
     );
 
-    showToast(
+    if(showMessage){
 
-        "Scanner dihentikan",
+        showToast(
+            "Scanner dihentikan",
+            "warning"
+        );
 
-        "warning"
-
-    );
+    }
 
 }
 
@@ -365,65 +374,51 @@ async function stopScanner() {
 // SCAN IMAGE
 // =====================================================
 
-async function scanImage(file) {
+async function scanImage(file){
 
-    try {
+    try{
 
-        if (scannerRunning) {
+        if(scannerRunning){
 
-            await stopScanner();
+            await stopScanner(false);
 
         }
 
-        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode =
+            new Html5Qrcode("reader");
 
         setStatus(
-
             "Memproses gambar...",
-
             "#3b82f6"
-
         );
 
-        const result = await html5QrCode.scanFile(
-
-            file,
-
-            false
-
-        );
+        const result =
+            await html5QrCode.scanFile(
+                file,
+                false
+            );
 
         processScanResult(result);
 
+        await html5QrCode.clear();
+
+        html5QrCode = null;
+
     }
 
-    catch (err) {
+    catch(err){
 
         console.error(err);
 
         showToast(
-
             "QR Code tidak ditemukan",
-
             "error"
-
         );
 
         setStatus(
-
             "QR tidak ditemukan",
-
             "#ef4444"
-
         );
-
-    }
-
-    finally {
-
-        document
-            .getElementById("reader")
-            .innerHTML = "";
 
     }
 
@@ -433,7 +428,7 @@ async function scanImage(file) {
 // SUCCESS
 // =====================================================
 
-function onScanSuccess(decodedText) {
+function onScanSuccess(decodedText){
 
     processScanResult(decodedText);
 
@@ -443,10 +438,9 @@ function onScanSuccess(decodedText) {
 // FAILURE
 // =====================================================
 
-function onScanFailure() {
+function onScanFailure(error){
 
-    // kosongkan saja
-    // html5-qrcode memanggil fungsi ini berkali-kali
+    // sengaja dikosongkan
 
 }
 
@@ -454,9 +448,13 @@ function onScanFailure() {
 // PROCESS RESULT
 // =====================================================
 
-function processScanResult(decodedText) {
+function processScanResult(decodedText){
 
-    if (scanLocked) return;
+    if(scanLocked){
+
+        return;
+
+    }
 
     scanLocked = true;
 
@@ -467,70 +465,59 @@ function processScanResult(decodedText) {
     vibrateDevice([120]);
 
     showToast(
-
         "QR berhasil dipindai",
-
         "success"
-
     );
 
-    let icon = "📝";
+    let icon="📝";
+    let type="Plain Text";
 
-    let type = "Plain Text";
+    if(decodedText.startsWith("http")){
 
-    if (decodedText.startsWith("http")) {
-
-        icon = "🌐";
-
-        type = "Website";
+        icon="🌐";
+        type="Website";
 
     }
 
-    else if (decodedText.startsWith("WIFI:")) {
+    else if(decodedText.startsWith("WIFI:")){
 
-        icon = "📶";
-
-        type = "WiFi";
-
-    }
-
-    else if (decodedText.startsWith("mailto:")) {
-
-        icon = "✉️";
-
-        type = "Email";
+        icon="📶";
+        type="WiFi";
 
     }
 
-    else if (decodedText.startsWith("tel:")) {
+    else if(decodedText.startsWith("mailto:")){
 
-        icon = "📞";
-
-        type = "Telephone";
-
-    }
-
-    else if (decodedText.startsWith("SMSTO:")) {
-
-        icon = "💬";
-
-        type = "SMS";
+        icon="✉️";
+        type="Email";
 
     }
 
-    else if (decodedText.startsWith("geo:")) {
+    else if(decodedText.startsWith("tel:")){
 
-        icon = "📍";
-
-        type = "Location";
+        icon="📞";
+        type="Telephone";
 
     }
 
-    else if (decodedText.includes("BEGIN:VCARD")) {
+    else if(decodedText.startsWith("SMSTO:")){
 
-        icon = "👤";
+        icon="💬";
+        type="SMS";
 
-        type = "Contact";
+    }
+
+    else if(decodedText.startsWith("geo:")){
+
+        icon="📍";
+        type="Location";
+
+    }
+
+    else if(decodedText.includes("BEGIN:VCARD")){
+
+        icon="👤";
+        type="Contact";
 
     }
 
@@ -540,98 +527,19 @@ function processScanResult(decodedText) {
 
         type,
 
-        data: decodedText
+        data:decodedText
 
     });
 
     setStatus(
-
         "QR berhasil dipindai",
-
         "#22c55e"
-
     );
 
-    setTimeout(() => {
+    setTimeout(()=>{
 
-        scanLocked = false;
+        scanLocked=false;
 
-    }, 1500);
-
-}
-
-// =====================================================
-// HELPER
-// =====================================================
-
-function resetScannerState() {
-
-    scanLocked = false;
-
-    scannerRunning = false;
+    },1500);
 
 }
-
-function enableScannerButton() {
-
-    startBtn.disabled = false;
-
-    stopBtn.disabled = true;
-
-}
-
-function disableScannerButton() {
-
-    startBtn.disabled = true;
-
-    stopBtn.disabled = false;
-
-}
-
-function clearReader() {
-
-    const reader =
-
-        document.getElementById("reader");
-
-    if (reader) {
-
-        reader.innerHTML = "";
-
-    }
-
-}
-
-// =====================================================
-// OPTIONAL CLEANUP
-// =====================================================
-
-window.addEventListener(
-
-    "beforeunload",
-
-    async () => {
-
-        try {
-
-            if (
-
-                html5QrCode &&
-
-                scannerRunning
-
-            ) {
-
-                await html5QrCode.stop();
-
-                await html5QrCode.clear();
-
-            }
-
-        }
-
-        catch (e) {}
-
-    }
-
-);
