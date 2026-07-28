@@ -143,14 +143,54 @@ function applyVideoMirror() {
 
     if (!video) return;
 
-    // Deteksi apakah kamera depan
-    const camera = cameras.find(c => c.id === currentCameraId);
+    let facing = null;
 
-    const label = (camera?.label || "").toLowerCase();
+    // Cara paling akurat: baca facingMode langsung dari
+    // MediaStreamTrack yang sedang aktif (tidak bergantung
+    // pada teks label kamera yang beda-beda tiap HP/browser)
+    try {
 
-    const isFrontCamera =
-        label.includes("front") ||
-        label.includes("user");
+        const stream = video.srcObject;
+
+        const track = stream && stream.getVideoTracks
+            ? stream.getVideoTracks()[0]
+            : null;
+
+        const settings = track && track.getSettings
+            ? track.getSettings()
+            : null;
+
+        facing = settings && settings.facingMode
+            ? settings.facingMode
+            : null;
+
+    } catch (e) {
+
+        facing = null;
+
+    }
+
+    let isFrontCamera;
+
+    if (facing) {
+
+        // "user" = kamera depan, "environment" = kamera belakang
+        isFrontCamera = facing === "user";
+
+    } else {
+
+        // Fallback kalau browser tidak mendukung getSettings():
+        // cek dari teks label kamera (termasuk istilah Indonesia)
+        const camera = cameras.find(c => c.id === currentCameraId);
+
+        const label = (camera?.label || "").toLowerCase();
+
+        isFrontCamera =
+            label.includes("front") ||
+            label.includes("user") ||
+            label.includes("depan");
+
+    }
 
     if (isFrontCamera) {
 
@@ -222,7 +262,11 @@ async function startScanner() {
 
         scannerRunning = true;
 
-        // Tunggu video dibuat oleh html5-qrcode
+        // Terapkan mirror segera (srcObject biasanya sudah
+        // tersedia begitu start() resolve), plus fallback delay
+        // untuk device yang render video-nya sedikit lebih lambat
+        applyVideoMirror();
+
         setTimeout(() => {
 
             applyVideoMirror();
@@ -292,6 +336,8 @@ async function switchCamera() {
     scannerRunning = true;
 
     // reapply mirror & status setiap ganti kamera
+    applyVideoMirror();
+
     setTimeout(() => {
 
         applyVideoMirror();
