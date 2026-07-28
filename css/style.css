@@ -316,7 +316,7 @@ SCANNER
 #reader video{
 
     border-radius:18px !important;
-     transform: scaleX(-1) !important;
+    transform: scaleX(1);
 
 }
 
